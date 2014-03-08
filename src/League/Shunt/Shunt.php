@@ -48,6 +48,16 @@ class Shunt extends BaseObject implements ShuntInterface
     protected $chainableCommand = array();
 
     /**
+     * @var string Standard output from command
+     */
+    protected $stdout;
+
+    /**
+     * @var string Standard error output from command
+     */
+    protected $stderr;
+
+    /**
      * Get current Shunt version
      *
      * @return string Shunt version
@@ -104,6 +114,26 @@ class Shunt extends BaseObject implements ShuntInterface
         $this->auth = $auth;
 
         $this->printDebug('HOST FINGERPRINT: '.ssh2_fingerprint($this->session->getConnection()));
+    }
+
+    /**
+     * Gets the raw standard output contents from the last command that was run
+     * @param boolean $as_array Return as an array of lines
+     * @return string|array
+     */
+    public function getStdOut($as_array=FALSE) {
+        $trimmed = trim($this->stdout);
+        return $as_array? preg_split("/\r?\n/", $trimmed): $trimmed;
+    }
+
+    /**
+     * Gets the raw standard error contents from the last command that was run
+     * @param boolean $as_array Return as an array of lines
+     * @return string|array
+     */
+    public function getStdErr($as_array=FALSE) {
+        $trimmed = trim($this->stderr);
+        return $as_array? preg_split("/\r?\n/", $trimmed): $trimmed;
     }
 
     /**
@@ -201,7 +231,9 @@ class Shunt extends BaseObject implements ShuntInterface
         $this->printVerbose('Get Streams content...');
 
         $resultErr = stream_get_contents($errStream);
+        $this->stderr = $resultErr;
         $resultDio = stream_get_contents($dioStream);
+        $this->stdout = $resultDio;
         $resultDio = empty($resultDio) ? '[OK]' : $resultDio;
 
         if (!empty($resultErr)) $halt = TRUE;
@@ -215,6 +247,8 @@ class Shunt extends BaseObject implements ShuntInterface
                 $this->printOut((($x === 0) ? '<comment>'.$host.'</comment>' : str_pad(' ', strlen($host))).' > <info>'.$resultErrLine.'</info>');
             }
             if (count($resultErrArray) == 1) $this->printOut('<error>Aborted</error>');
+        } else if ($retval) {
+            return (int) $halt;
         } else {
             if ($resultDio !== '[OK]') {
                 $resultDioArray = array_filter(explode("\n", $resultDio));
@@ -226,8 +260,6 @@ class Shunt extends BaseObject implements ShuntInterface
                 $this->printOut('<comment>'.$host.'</comment> > <info>'.$resultDio.'</info>');
             }
         }
-
-        if ($retval) return (int) $halt;
     }
 
     /**
